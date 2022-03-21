@@ -1,0 +1,20 @@
+FROM balenalib/%%BALENA_MACHINE_NAME%%:latest-build AS build
+
+### !!! %2B is the encoded + !!!
+ENV BALENA_OS_VERSION '2.83.21%2Brev1.prod'
+
+RUN apt-get update && apt-get install -y bc
+ADD https://files.balena-cloud.com/images/%%BALENA_MACHINE_NAME%%/$BALENA_OS_VERSION/kernel_modules_headers.tar.gz .
+RUN tar -xf kernel_modules_headers.tar.gz
+RUN git clone https://github.com/Mange/rtl8192eu-linux-driver.git && \
+    sed -i 's/ARM_RPI = n/ARM_RPI = y/g' rtl8192eu-linux-driver/Makefile && \
+    sed -i 's/I386_PC = y/I386_PC = n/g' rtl8192eu-linux-driver/Makefile
+WORKDIR /rtl8192eu-linux-driver
+RUN KSRC="/kernel_modules_headers" make
+
+FROM balenalib/%%BALENA_MACHINE_NAME%%-alpine:latest-run
+
+COPY --from=build /rtl8192eu-linux-driver/8192eu.ko .
+COPY run.sh .
+RUN chmod +x run.sh
+CMD ./run.sh
